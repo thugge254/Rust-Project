@@ -1,0 +1,45 @@
+use std::env;
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::path::Path;
+
+// Function to read words from a file and convert them to lowercase
+fn read_words(filename: &str) -> io::Result<Vec<String>> {
+    let path = Path::new(filename);
+    let file = File::open(&path)?;
+    let reader = io::BufReader::new(file);
+
+    let mut words = Vec::new();
+    
+    for line in reader.lines() {
+        let line = line?;
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 2 {
+            continue;
+        }
+        let word = parts[1].to_lowercase(); // Convert to lowercase
+        words.push(word);
+    }
+    
+    Ok(words)
+}
+
+fn main() {
+    // Get the file name from command-line arguments
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: {} <filename>", args[0]);
+        return;
+    }
+
+    let filename = &args[1];
+    
+    match read_words(filename) {
+        Ok(words) => {
+            println!("Words read from file: {:?}", words);
+        }
+        Err(e) => {
+            eprintln!("Error reading file: {}", e);
+        }
+    }
+}

@@ -1,0 +1,129 @@
+use std::env; // Import the environment module to read command-line arguments
+use std::fs::File; // Import the File module to enable opening the file
+use std::io::{self, BufRead}; // Import the io module for input and output operations. Import BufRead module for reading lines from a file efficiently
+use std::path::Path; // Import the Path module. This module provides functionality for working with file and directory paths in a platform-independent way.
+
+const GRID_SIZE: usize = 15; // Define the size of the crossword grid
+
+type Grid = Vec<Vec<char>>; // Define a type alias for a 2D vector of characters representing the grid
+
+/// Initializes a grid of the given size with empty spaces.
+fn initialize_grid(size: usize) -> Grid {
+    vec![vec![' '; size]; size] // Create a 2D vector filled with spaces
+}
+
+/// Reads words from a file and returns them as a vector of strings.
+/// Each line is expected to contain a word.
+fn read_words(filename: &str) -> io::Result<Vec<String>> {
+    let file = File::open(Path::new(filename))?; // Open the file
+    let reader = io::BufReader::new(file);
+    
+    // Read each line, extract the first word, convert to lowercase, and return as a vector
+    reader
+        .lines()
+        .map(|line| Ok(line?.split_whitespace().next().unwrap_or("").to_lowercase()))
+        .collect()
+}
+
+/// Words can be placed either vertically or horizontally.
+/// Returns `true` if placement is successful, otherwise `false`.
+fn place_word(grid: &mut Grid, word: &str, row: usize, col: usize, vertical: bool) -> bool {
+    let chars: Vec<char> = word.chars().collect(); // Convert word to a vector of characters
+    let len = chars.len(); // Get the length of the word
+
+    if vertical {
+        if row + len > GRID_SIZE {
+            return false; // Check if the word fits within the grid vertically
+        }
+        for (i, &ch) in chars.iter().enumerate() {
+            if grid[row + i][col] != ' ' && grid[row + i][col] != ch {
+                return false; // Ensure word does not overlap conflicting characters
+            }
+        }
+        for (i, &ch) in chars.iter().enumerate() {
+            grid[row + i][col] = ch; // Place the word vertically
+        }
+    } else {
+        if col + len > GRID_SIZE {
+            return false; // Check if the word fits within the grid horizontally
+        }
+        for (i, &ch) in chars.iter().enumerate() {
+            if grid[row][col + i] != ' ' && grid[row][col + i] != ch {
+                return false; // Ensure word does not overlap conflicting characters
+            }
+        }
+        grid[row][col..(col + len)].copy_from_slice(&chars[..len]); // Optimized copying
+    }
+    true // Word placement was successful
+}
+
+/// Prints the crossword grid to the console.
+fn print_grid(grid: &Grid) {
+    for row in grid {
+        println!("{}", row.iter().collect::<String>()); // Convert each row to a string and print it
+    }
+}
+
+/// Calculates the compactness score of the grid.
+/// The score is based on the smallest rectangle that encloses all placed words.
+fn calculate_compactness(grid: &Grid) -> usize {
+    let mut min_row = GRID_SIZE;
+    let mut max_row = 0;
+    let mut min_col = GRID_SIZE;
+    let mut max_col = 0;
+
+    // Determine the boundaries of the smallest rectangle enclosing all words
+    for (r, row) in grid.iter().enumerate() {
+        for (c, &ch) in row.iter().enumerate() {
+            if ch != ' ' {
+                min_row = min_row.min(r);
+                max_row = max_row.max(r);
+                min_col = min_col.min(c);
+                max_col = max_col.max(c);
+            }
+        }
+    }
+
+    if min_row > max_row || min_col > max_col {
+        return 0; // Return zero if no words are placed in the grid
+    }
+
+    (max_row - min_row + 1) * (max_col - min_col + 1) // Return compactness score
+}
+
+/// Reads words from a file, places them in a crossword grid, and calculates the compactness score.
+fn main() {
+    let args: Vec<String> = env::args().collect(); // Read command-line arguments
+    if args.len() < 2 {
+        eprintln!("Usage: {} <filename>", args[0]); // Print error if no filename is provided
+        return;
+    }
+
+    let filename = &args[1]; 
+    let words = match read_words(filename) {
+        Ok(words) => words, // Read words from the file
+        Err(e) => {
+            eprintln!("Error reading file: {}", e); // Print error if file reading fails
+            return;
+        }
+    };
+
+    let mut grid = initialize_grid(GRID_SIZE); // Initialize the crossword grid
+    let mut row = 3;
+    let mut col = 3;
+    let mut vertical = false;
+
+    // Try placing each word in the grid
+    for word in words {
+        if !place_word(&mut grid, &word, row, col, vertical) {
+            eprintln!("Could not place word: {}", word); // Print error if word placement fails
+        }
+        vertical = !vertical; // Alternate between vertical and horizontal placement
+        row = (row + 1) % (GRID_SIZE - 5);
+        col = (col + 1) % (GRID_SIZE - 5);
+    }
+
+    print_grid(&grid); // Print the crossword grid
+    let compactness = calculate_compactness(&grid); // Compute compactness score
+    println!("Compactness Score: {}", compactness); // Print the compactness score
+}
